@@ -64,14 +64,6 @@ npm test
 São 22 testes automáticos (Node.js 20 ou mais novo, sem dependências), incluindo os vetores oficiais da
 RFC 6238 para SHA-1, SHA-256 e SHA-512, a criptografia do cofre, a recuperação, o gerador e a leitura de CSV.
 
-## Publicar no GitHub Pages
-
-1. Crie um repositório chamado `cofrekey` no GitHub e envie todos os arquivos desta pasta.
-2. No repositório, abra **Settings → Pages**.
-3. Em **Branch**, escolha `main` e a pasta `/ (root)` e clique em **Save**.
-4. Em um ou dois minutos o site fica disponível em `https://SEU-USUARIO.github.io/cofrekey/`.
-
-O GitHub Pages usa HTTPS, que é obrigatório para a criptografia do navegador e para instalar o app.
 
 ## Estrutura
 
