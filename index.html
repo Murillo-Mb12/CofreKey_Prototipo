@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="description" content="CofreKey: gerenciador de senhas com autenticador de dois fatores. Tudo criptografado no seu aparelho.">
+<meta name="theme-color" content="#0E5A61">
+<title>CofreKey</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/app.css">
+<script defer src="vendor/qrcode.min.js"></script>
+<script defer src="vendor/jsQR.min.js"></script>
+<script defer src="js/totp.js"></script>
+<script defer src="js/vault.js"></script>
+<script defer src="js/passwords.js"></script>
+<script defer src="js/csv.js"></script>
+<script defer src="js/storage.js"></script>
+<script defer src="js/qr.js"></script>
+<script defer src="js/app.js"></script>
+</head>
+<body>
+<div class="app" id="app">
+
+  <div class="banner warn hidden" id="bnStorage" role="alert">
+    <strong>Seus dados não estão sendo salvos.</strong>
+    Este navegador está bloqueando o armazenamento (modo anônimo ou configuração de privacidade). Tudo será perdido ao fechar a página.
+  </div>
+
+  <!-- ===================== Criar cofre ===================== -->
+  <section class="screen gate hidden" id="scr-setup" aria-labelledby="setupTitle">
+    <div class="dial" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+    <h1 id="setupTitle">Crie seu cofre</h1>
+    <p class="lead">Você vai decorar só esta senha. Ela abre todas as outras e nunca fica salva em lugar nenhum.</p>
+    <div class="field">
+      <label for="m1">Senha mestra</label>
+      <div class="pw"><input class="input" id="m1" type="password" autocomplete="new-password" placeholder="Mínimo de 10 caracteres" aria-describedby="m1Label"><button type="button" class="eye" data-eye="m1">Mostrar</button></div>
+      <div class="meter" aria-hidden="true"><i id="m1Meter"></i></div>
+      <span class="meter-label" id="m1Label">Use uma frase longa ou misture letras, números e símbolos.</span>
+    </div>
+    <div class="field">
+      <label for="m2">Confirme a senha mestra</label>
+      <div class="pw"><input class="input" id="m2" type="password" autocomplete="new-password"><button type="button" class="eye" data-eye="m2">Mostrar</button></div>
+    </div>
+    <p class="msg" id="setupMsg" role="alert"></p>
+    <button class="btn block" id="createBtn" type="button">Criar cofre</button>
+    <div class="links">
+      <button class="linkbtn" id="setupRestore" type="button">Já tenho um backup do CofreKey</button>
+      <button class="linkbtn" data-help="h-mestra" type="button">Como o CofreKey protege minhas senhas?</button>
+    </div>
+  </section>
+
+  <!-- ===================== Código de recuperação ===================== -->
+  <section class="screen gate hidden" id="scr-code" aria-labelledby="codeScrTitle">
+    <div class="dial" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3"/><path d="m16 7 3 3"/><path d="m18 5 2 2"/></svg></div>
+    <h1 id="codeScrTitle">Guarde seu código de recuperação</h1>
+    <p class="lead">Se você esquecer a senha mestra, este código é o único jeito de abrir o cofre. Anote em papel ou salve fora deste aparelho. Ele não aparece de novo.</p>
+    <output class="codebox" id="rcCode" aria-live="polite"></output>
+    <div class="row">
+      <button class="btn quiet grow" id="rcCopy" type="button">Copiar</button>
+      <button class="btn quiet grow" id="rcDownload" type="button">Baixar arquivo .txt</button>
+    </div>
+    <label class="check"><input type="checkbox" id="rcCheck"> Anotei o código em um lugar seguro</label>
+    <button class="btn block" id="rcContinue" type="button" disabled>Continuar</button>
+  </section>
+
+  <!-- ===================== Cofre bloqueado ===================== -->
+  <section class="screen gate hidden" id="scr-lock" aria-labelledby="lockTitle">
+    <div class="dial" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12" cy="16" r="1.4"/></svg></div>
+    <h1 id="lockTitle">Cofre bloqueado</h1>
+    <p class="lead" id="lockLead">Digite sua senha mestra para ver suas senhas e códigos.</p>
+    <div class="field" id="lockField">
+      <label for="unlockPw">Senha mestra</label>
+      <div class="pw"><input class="input" id="unlockPw" type="password" autocomplete="current-password"><button type="button" class="eye" data-eye="unlockPw">Mostrar</button></div>
+    </div>
+    <p class="msg" id="lockMsg" role="alert"></p>
+    <button class="btn block" id="unlockBtn" type="button">Desbloquear</button>
+    <div class="callout danger hidden" id="lockDamaged">
+      <p><strong>O arquivo do cofre está danificado.</strong> A senha mestra está certa, mas os dados salvos neste navegador não puderam ser lidos. Restaure o último backup.</p>
+      <div class="row wrap">
+        <button class="btn sm" id="damagedRestore" type="button">Restaurar backup</button>
+        <button class="btn danger sm" id="damagedErase" type="button">Apagar e começar de novo</button>
+      </div>
+    </div>
+    <div class="links">
+      <button class="linkbtn" id="forgotBtn" type="button">Esqueci a senha mestra</button>
+      <button class="linkbtn" data-help="h-esqueci" type="button">Ajuda</button>
+    </div>
+  </section>
+
+  <!-- ===================== Recuperar acesso ===================== -->
+  <section class="screen gate hidden" id="scr-recover" aria-labelledby="recTitle">
+    <div class="dial" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/></svg></div>
+    <h1 id="recTitle">Recuperar acesso</h1>
+    <div id="recStep1" class="stack">
+      <p class="lead">Digite o código de recuperação que apareceu quando você criou o cofre.</p>
+      <div class="field">
+        <label for="recCode">Código de recuperação</label>
+        <input class="input mono" id="recCode" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XX">
+      </div>
+      <p class="msg" id="recMsg1" role="alert"></p>
+      <button class="btn block" id="recVerify" type="button">Verificar código</button>
+    </div>
+    <div id="recStep2" class="stack hidden">
+      <p class="lead">Código aceito. Crie uma nova senha mestra.</p>
+      <div class="field">
+        <label for="r1">Nova senha mestra</label>
+        <div class="pw"><input class="input" id="r1" type="password" autocomplete="new-password" aria-describedby="r1Label"><button type="button" class="eye" data-eye="r1">Mostrar</button></div>
+        <div class="meter" aria-hidden="true"><i id="r1Meter"></i></div>
+        <span class="meter-label" id="r1Label"></span>
+      </div>
+      <div class="field">
+        <label for="r2">Confirme a nova senha mestra</label>
+        <div class="pw"><input class="input" id="r2" type="password" autocomplete="new-password"><button type="button" class="eye" data-eye="r2">Mostrar</button></div>
+      </div>
+      <p class="msg" id="recMsg2" role="alert"></p>
+      <button class="btn block" id="recSave" type="button">Salvar nova senha</button>
+    </div>
+    <div class="links">
+      <button class="linkbtn" id="recBack" type="button">Voltar</button>
+      <button class="linkbtn" id="recErase" type="button">Não tenho o código: apagar o cofre e começar de novo</button>
+    </div>
+  </section>
+
+  <!-- ===================== App ===================== -->
+  <section class="screen main hidden" id="scr-main">
+    <header class="top">
+      <div class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3"/><path d="m16 7 3 3"/><path d="m18 5 2 2"/></svg>CofreKey</div>
+      <div class="head-actions">
+        <button class="btn ghost sm" data-help type="button" aria-keyshortcuts="?">Ajuda</button>
+        <button class="btn ghost sm" id="lockBtn" type="button" aria-keyshortcuts="B">Bloquear</button>
+      </div>
+    </header>
+
+    <main id="views">
+      <!-- Senhas -->
+      <div class="view" id="v-senhas" role="tabpanel" aria-labelledby="tab-senhas">
+        <h2>Senhas</h2>
+        <div class="banner info hidden" id="bnBackup">
+          <span id="bnBackupText">Você ainda não fez um backup. Sem ele, perder este aparelho é perder as senhas.</span>
+          <button class="btn sm" id="bnBackupBtn" type="button">Fazer backup</button>
+        </div>
+        <div class="toolbar">
+          <input class="input" id="search" type="search" placeholder="Buscar por site ou usuário" aria-label="Buscar senhas" aria-keyshortcuts="/">
+          <button class="btn" id="addLogin" type="button" aria-keyshortcuts="N">Adicionar</button>
+        </div>
+        <div class="list" id="loginList"></div>
+      </div>
+
+      <!-- Códigos -->
+      <div class="view hidden" id="v-codigos" role="tabpanel" aria-labelledby="tab-codigos">
+        <h2>Códigos</h2>
+        <p class="sub">Códigos de verificação em duas etapas. Toque no código para copiar.</p>
+        <div class="toolbar">
+          <button class="btn block" id="addCode" type="button" aria-keyshortcuts="N">Adicionar</button>
+        </div>
+        <div class="list" id="codeList"></div>
+      </div>
+
+      <!-- Gerador -->
+      <div class="view hidden" id="v-gerador" role="tabpanel" aria-labelledby="tab-gerador">
+        <h2>Gerador</h2>
+        <output class="gen-out" id="genOut" aria-live="polite"></output>
+        <div class="meter gap-top" aria-hidden="true"><i id="genMeter"></i></div>
+        <span class="meter-label" id="genLabel"></span>
+        <div class="opts">
+          <div class="opt col">
+            <div class="opt-line"><label for="genLen">Tamanho</label><b id="genLenVal">16</b></div>
+            <input type="range" id="genLen" min="8" max="64" value="16">
+          </div>
+          <label class="opt"><span>Letras maiúsculas (A–Z)</span><input type="checkbox" id="gUpper" checked></label>
+          <label class="opt"><span>Letras minúsculas (a–z)</span><input type="checkbox" id="gLower" checked></label>
+          <label class="opt"><span>Números (0–9)</span><input type="checkbox" id="gDigits" checked></label>
+          <label class="opt"><span>Símbolos (!@#$…)</span><input type="checkbox" id="gSymbols" checked></label>
+        </div>
+        <div class="row">
+          <button class="btn quiet grow" id="genNew" type="button">Gerar outra</button>
+          <button class="btn quiet grow" id="genCopy" type="button">Copiar</button>
+        </div>
+        <button class="btn block gap-top" id="genSave" type="button">Salvar como nova senha</button>
+      </div>
+
+      <!-- Ajustes -->
+      <div class="view hidden" id="v-ajustes" role="tabpanel" aria-labelledby="tab-ajustes">
+        <h2>Ajustes</h2>
+
+        <section class="group" aria-labelledby="gSeg">
+          <h3 id="gSeg">Segurança</h3>
+          <div class="setting">
+            <label for="setIdle">Bloquear sem uso depois de</label>
+            <select class="input" id="setIdle">
+              <option value="1">1 minuto</option><option value="2">2 minutos</option>
+              <option value="5">5 minutos</option><option value="10">10 minutos</option>
+            </select>
+          </div>
+          <div class="setting">
+            <label for="setHide">Quando sair do app</label>
+            <select class="input" id="setHide">
+              <option value="now">Bloquear na hora</option><option value="1min">Bloquear depois de 1 minuto</option><option value="never">Não bloquear</option>
+            </select>
+          </div>
+          <div class="setting">
+            <label for="setClip">Limpar o que foi copiado depois de</label>
+            <select class="input" id="setClip">
+              <option value="15">15 segundos</option><option value="30">30 segundos</option><option value="60">1 minuto</option>
+            </select>
+          </div>
+          <div class="row wrap">
+            <button class="btn quiet sm" id="setChangePw" type="button">Alterar senha mestra</button>
+            <button class="btn quiet sm" id="setNewCode" type="button">Gerar novo código de recuperação</button>
+          </div>
+        </section>
+
+        <section class="group" aria-labelledby="gBkp">
+          <h3 id="gBkp">Backup e importação</h3>
+          <p class="note" id="backupStatus"></p>
+          <div class="row wrap">
+            <button class="btn sm" id="setBackup" type="button">Fazer backup agora</button>
+            <button class="btn quiet sm" id="setRestore" type="button">Restaurar backup</button>
+            <button class="btn quiet sm" id="setImport" type="button">Importar senhas (CSV)</button>
+          </div>
+        </section>
+
+        <section class="group" aria-labelledby="gApp">
+          <h3 id="gApp">Aparência e instalação</h3>
+          <div class="setting">
+            <label for="setTheme">Tema</label>
+            <select class="input" id="setTheme">
+              <option value="auto">Igual ao aparelho</option><option value="light">Claro</option><option value="dark">Escuro</option>
+            </select>
+          </div>
+          <div class="row wrap hidden" id="installRow">
+            <button class="btn quiet sm" id="setInstall" type="button">Instalar como aplicativo</button>
+          </div>
+          <p class="note">No iPhone: toque em Compartilhar e depois em “Adicionar à Tela de Início”.</p>
+        </section>
+
+        <section class="group" aria-labelledby="gArm">
+          <h3 id="gArm">Armazenamento</h3>
+          <p class="note" id="storageStatus"></p>
+          <button class="btn danger sm" id="setErase" type="button">Apagar o cofre deste aparelho</button>
+        </section>
+
+        <p class="about">CofreKey versão <span id="appVersion"></span>. Projeto de Interação Humano-Computador, FATEC Sorocaba, 2026.</p>
+      </div>
+    </main>
+
+    <div class="banner idle hidden" id="bnIdle" role="alert">
+      <span id="bnIdleText"></span>
+      <button class="btn sm" id="bnIdleStay" type="button">Continuar usando</button>
+    </div>
+
+    <nav class="tabs" role="tablist" aria-label="Seções">
+      <button role="tab" id="tab-senhas" aria-controls="v-senhas" aria-selected="true" data-tab="senhas" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M10.8 12.2 20 3"/><path d="m16 7 3 3"/></svg>Senhas</button>
+      <button role="tab" id="tab-codigos" aria-controls="v-codigos" aria-selected="false" data-tab="codigos" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M12 8v4l2.5 1.5"/></svg>Códigos</button>
+      <button role="tab" id="tab-gerador" aria-controls="v-gerador" aria-selected="false" data-tab="gerador" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.2"/><circle cx="15.5" cy="15.5" r="1.2"/><circle cx="15.5" cy="8.5" r="1.2"/><circle cx="8.5" cy="15.5" r="1.2"/></svg>Gerador</button>
+      <button role="tab" id="tab-ajustes" aria-controls="v-ajustes" aria-selected="false" data-tab="ajustes" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Ajustes</button>
+    </nav>
+  </section>
+</div>
+
+<!-- Arquivos (escondidos) -->
+<input type="file" id="fileRestore" accept=".json,application/json" class="hidden" tabindex="-1" aria-hidden="true">
+<input type="file" id="fileCsv" accept=".csv,text/csv" class="hidden" tabindex="-1" aria-hidden="true">
+<input type="file" id="fileQr" accept="image/*" class="hidden" tabindex="-1" aria-hidden="true">
+
+<!-- ===================== Janelas ===================== -->
+<div class="scrim" id="loginSheet">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="loginTitle">
+    <h3 id="loginTitle">Adicionar senha</h3>
+    <div class="field"><label for="fSite">Site ou aplicativo</label><input class="input" id="fSite" placeholder="Ex.: Instagram" autocomplete="off"></div>
+    <div class="field"><label for="fUser">Usuário ou e-mail</label><input class="input" id="fUser" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+    <div class="field"><label for="fPass">Senha</label>
+      <div class="row"><input class="input mono grow" id="fPass" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" aria-describedby="fLabel fWarnText"><button class="btn quiet sm" id="fGen" type="button">Gerar</button></div>
+      <div class="meter" aria-hidden="true"><i id="fMeter"></i></div><span class="meter-label" id="fLabel"></span>
+      <div class="callout warn hidden" id="fWarn"><span id="fWarnText"></span> <button class="linkbtn strong" id="fWarnGen" type="button">Gerar uma senha forte</button></div>
+    </div>
+    <div class="field"><label for="fUrl">Endereço do site (opcional)</label><input class="input" id="fUrl" placeholder="https://" inputmode="url" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+    <div class="field"><label for="fNote">Observações (opcional)</label><input class="input" id="fNote" autocomplete="off"></div>
+    <div class="field"><label for="fCode">Código de verificação deste site (opcional)</label><select class="input" id="fCode"></select></div>
+    <p class="msg" id="loginMsg" role="alert"></p>
+    <div class="sheet-actions"><button class="btn ghost" data-close type="button">Cancelar</button><button class="btn" id="saveLogin" type="button">Salvar senha</button></div>
+  </div>
+</div>
+
+<div class="scrim" id="codeSheet">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="codeTitle">
+    <h3 id="codeTitle">Adicionar código</h3>
+    <div id="scanArea" class="stack">
+      <p class="hint">Escaneie o QR code que o site mostra ao ativar a verificação em duas etapas. <button class="linkbtn" data-help="h-chave" type="button">Como ativar?</button></p>
+      <div class="row wrap">
+        <button class="btn quiet sm grow" id="scanCam" type="button">Escanear com a câmera</button>
+        <button class="btn quiet sm grow" id="scanImg" type="button">Ler QR de uma imagem</button>
+      </div>
+      <div class="cam hidden" id="camBox">
+        <video id="camVideo" playsinline muted></video>
+        <div class="cam-frame" aria-hidden="true"></div>
+        <button class="btn sm" id="camStop" type="button">Cancelar leitura</button>
+      </div>
+      <div class="divider">ou digite</div>
+    </div>
+    <div class="field"><label for="cIssuer">Serviço</label><input class="input" id="cIssuer" placeholder="Ex.: GitHub" autocomplete="off"></div>
+    <div class="field"><label for="cAccount">Conta (opcional)</label><input class="input" id="cAccount" placeholder="Ex.: voce@email.com" autocomplete="off" autocapitalize="none" spellcheck="false"></div>
+    <div class="field" id="cSecretField"><label for="cSecret">Chave secreta</label><input class="input mono" id="cSecret" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Letras e números mostrados pelo site"></div>
+    <p class="msg" id="codeMsg" role="alert"></p>
+    <button class="linkbtn" id="demoCode" type="button">Criar um código de teste</button>
+    <div class="sheet-actions"><button class="btn ghost" data-close type="button">Cancelar</button><button class="btn" id="saveCode" type="button">Salvar código</button></div>
+  </div>
+</div>
+
+<div class="scrim" id="qrSheet">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="qrTitle">
+    <h3 id="qrTitle">Levar para outro app</h3>
+    <p class="hint" id="qrHint"></p>
+    <div class="qrbox" id="qrBox"></div>
+    <output class="secret center" id="qrSecret"></output>
+    <div class="sheet-actions"><button class="btn" data-close type="button">Fechar</button></div>
+  </div>
+</div>
+
+<div class="scrim" id="pwSheet">
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="pwTitle">
+    <h3 id="pwTitle">Alterar senha mestra</h3>
+    <div class="field"><label for="p0">Senha mestra atual</label>
+      <div class="pw"><input class="input" id="p0" type="password" autocomplete="current-password"><button type="button" class="eye" data-eye="p0">Mostrar</button></div></div>
+    <div class="field"><label for="p1">Nova senha mestra</label>
+      <div class="pw"><input class="input" id="p1" type="password" autocomplete="new-password" aria-describedby="p1Label"><button type="button" class="eye" data-eye="p1">Mostrar</button></div>
+      <div class="meter" aria-hidden="true"><i id="p1Meter"></i></div><span class="meter-label" id="p1Label"></span></div>
+    <div class="field"><label for="p2">Confirme a nova senha mestra</label>
+      <div class="pw"><input class="input" id="p2" type="password" autocomplete="new-password"><button type="button" class="eye" data-eye="p2">Mostrar</button></div></div>
+    <p class="msg" id="pwMsg" role="alert"></p>
+    <div class="sheet-actions"><button class="btn ghost" data-close type="button">Cancelar</button><button class="btn" id="pwSave" type="button">Salvar nova senha</button></div>
+  </div>
+</div>
+
+<div class="scrim" id="confirmSheet">
+  <div class="sheet narrow" role="alertdialog" aria-modal="true" aria-labelledby="cfTitle" aria-describedby="cfText">
+    <h3 id="cfTitle"></h3>
+    <p class="hint" id="cfText"></p>
+    <div class="sheet-actions"><button class="btn ghost" id="cfCancel" type="button">Cancelar</button><button class="btn" id="cfOk" type="button">Confirmar</button></div>
+  </div>
+</div>
+
+<div class="scrim" id="helpSheet">
+  <div class="sheet help" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
+    <h3 id="helpTitle">Ajuda</h3>
+    <p class="hint">Toque em uma pergunta para ver a resposta.</p>
+    <div>
+      <details id="h-mestra"><summary>O que é a senha mestra?</summary><p>É a única senha que você precisa decorar. Ela abre o cofre com todas as outras. O CofreKey não guarda essa senha em lugar nenhum: ela só serve para abrir a chave que embaralha (criptografa) os seus dados.</p></details>
+      <details id="h-recuperacao"><summary>Para que serve o código de recuperação?</summary><p>Ele abre o cofre se você esquecer a senha mestra. Aparece uma única vez, quando o cofre é criado. Guarde em papel ou em outro lugar seguro, fora deste aparelho. Em Ajustes você pode gerar um novo; o antigo deixa de valer.</p></details>
+      <details id="h-esqueci"><summary>Esqueci a senha mestra. E agora?</summary><p>Na tela do cofre bloqueado, toque em “Esqueci a senha mestra” e digite o código de recuperação. Depois é só criar uma nova senha mestra. Sem a senha e sem o código, ninguém consegue abrir o cofre, nem a equipe do CofreKey.</p></details>
+      <details id="h-2fa"><summary>O que é a verificação em duas etapas?</summary><p>Além da senha, o site pede um código de 6 dígitos que muda a cada 30 segundos. Mesmo que alguém descubra sua senha, não entra sem esse código. O CofreKey gera os códigos do mesmo jeito que o Google Authenticator, inclusive sem internet.</p></details>
+      <details id="h-chave"><summary>Como adiciono um código de um site?</summary><p>No site (Google, GitHub, Instagram…), procure “verificação em duas etapas” nas configurações de segurança e ative. O site vai mostrar um QR code: na aba Códigos, toque em Adicionar e escaneie com a câmera ou leia de um print. Se preferir, toque em “não consigo escanear” no site para ver a chave secreta e digite no campo Chave secreta.</p></details>
+      <details id="h-forte"><summary>O que é uma senha forte?</summary><p>Uma senha longa (12 caracteres ou mais), com letras, números e símbolos, que você não usa em nenhum outro site. O Gerador cria senhas assim. Na lista, o ponto colorido mostra a força: verde é forte, vermelho é fraca. O app também avisa quando a mesma senha aparece em mais de uma conta.</p></details>
+      <details id="h-excluir"><summary>Excluí uma senha ou um código sem querer</summary><p>Logo depois de excluir, toque em Desfazer no aviso que aparece na parte de baixo da tela. O aviso fica visível por 8 segundos.</p></details>
+      <details id="h-bloqueio"><summary>Por que o cofre bloqueou sozinho?</summary><p>Por segurança, o cofre se fecha depois de um tempo sem uso e quando você sai do app. Quinze segundos antes do bloqueio aparece um aviso com o botão “Continuar usando”. Os tempos podem ser mudados em Ajustes.</p></details>
+      <details id="h-backup"><summary>Como faço backup ou troco de celular?</summary><p>Em Ajustes, toque em “Fazer backup agora”. O arquivo baixado continua criptografado: só abre com a sua senha mestra ou o código de recuperação. No outro aparelho, abra o CofreKey e toque em “Já tenho um backup do CofreKey”.</p></details>
+      <details id="h-importar"><summary>Como trago senhas salvas no navegador?</summary><p>No Chrome, Edge ou Firefox, exporte as senhas em um arquivo CSV (configurações de senhas). Depois, em Ajustes, toque em “Importar senhas (CSV)”. Ao terminar, apague o arquivo CSV: ele não é protegido.</p></details>
+      <details id="h-instalar"><summary>Dá para instalar como aplicativo?</summary><p>Sim. No Android e no computador, use “Instalar como aplicativo” em Ajustes (ou o menu do navegador). No iPhone, toque em Compartilhar e depois em “Adicionar à Tela de Início”. Instalado, o CofreKey abre sem internet.</p></details>
+      <details id="h-atalhos"><summary>Atalhos de teclado</summary><ul class="keys"><li><kbd>/</kbd> buscar senhas</li><li><kbd>N</kbd> adicionar senha ou código</li><li><kbd>1</kbd> a <kbd>4</kbd> trocar de aba</li><li><kbd>B</kbd> bloquear o cofre</li><li><kbd>?</kbd> abrir a ajuda</li><li><kbd>Esc</kbd> fechar a janela aberta</li></ul></details>
+      <details id="h-privacidade"><summary>Meus dados vão para a internet?</summary><p>Não. O CofreKey não tem servidor: senhas, códigos e configurações ficam só neste aparelho, criptografados. O app também não carrega nada de outros sites.</p></details>
+    </div>
+    <div class="sheet-actions"><button class="btn" data-close type="button">Fechar</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

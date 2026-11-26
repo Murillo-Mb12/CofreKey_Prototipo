@@ -1,0 +1,12 @@
+{
+  "name": "cofrekey",
+  "version": "1.0.0",
+  "description": "Gerenciador de senhas com autenticador de dois fatores (2FA). HTML, CSS e JavaScript puro, sem servidor.",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "start": "npx --yes http-server@14.1.1 -c-1 -p 8080 .",
+    "test": "node --test"
+  },
+  "engines": { "node": ">=20" }
+}
