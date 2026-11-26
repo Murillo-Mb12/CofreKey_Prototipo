@@ -7,7 +7,7 @@ guardados no próprio aparelho, criptografados. Não existe servidor: nada sai d
 Projeto da disciplina de Interação Humano-Computador, FATEC Sorocaba, 2026.
 Grupo: Felipe Kenji Sawada Nagai, Miguel Oliveira Goes e Murillo Martins Biazio.
 
-**Demonstração:** `https://Murilo-Mb12.github.io/cofrekey/`
+**Demonstração:** `https://murillo-mb12.github.io/CofreKey_Prototipo/`
 
 ## Funcionalidades
 
